@@ -9,6 +9,7 @@ export default async function handler(req, res) {
   try {
     const response = await fetch(SHEET_URL, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
     const data = await response.json();
