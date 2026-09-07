@@ -7,7 +7,7 @@ Configuration & Constants
 */
 const WA = '201556840368';
 const GH = 'https://raw.githubusercontent.com/ahmadtharwat13579-crypto/wodifurniture/main/images/conf/';
-const SHEET = 'https://script.google.com/macros/s/AKfycbz425oYXgtG6F_PoNrRbIaIZyqjifO1FEbbaOvoYt_66mguE-Cogvlu3PNb777jjtIj/exec?pwd=double-protection-password';
+const SHEET = 'https://script.google.com/macros/s/AKfycbzdsSpnSE8pmp9Z9KWz3ZcQvnFudav5nram7zPwS6uBdiKa5V0JVl-_6NfjHpr1L2Yr/exec?pwd=double-protection-password';
 const GEOAPIFY_API_KEY = '5d919ff1fd3f4004a73ceb1fb508e805';
 const cur = 'ج.م.';
 const DR_STORAGE_KEY = 'dr_form_draft';
@@ -3378,16 +3378,66 @@ function drGetLocation() {
 
 window.drGetLocation = drGetLocation;
 
-function drSendWhatsApp() {
+async function submitOrderToSheet(orderNum) {
+  const config = window.drDesignConfig;
+  const locationAddress = window.userLocationAddress || {};
+  const currentUser = window.currentUser || null;
+
+  const body = {
+    orderNum,
+    uid: currentUser?.uid || null,
+    userEmail: currentUser?.email || null,
+    userName: currentUser?.displayName || null,
+    name: document.getElementById('dr-customer-name')?.value || '',
+    phone: document.getElementById('dr-customer-phone')?.value || '',
+    brand: document.getElementById('dr-sink-brand')?.value || '',
+    sinkWidth: document.getElementById('dr-sink-width')?.value || '',
+    sinkCode: document.getElementById('dr-sink-code')?.value || '',
+    locationAddress,
+    lat: window.userLat || '',
+    lng: window.userLng || '',
+    sinkType: config?.sinkType || '',
+    designName: config?.design?.name || '',
+    size: config?.size?.size || '',
+    divisionName: config?.division?.name || '',
+    handleName: config?.handle?.name || 'بدون',
+    unitPrice: config?.unitPrice || ''
+  };
+
+  try {
+    const resp = await fetch('/api/submit-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    return data.success;
+  } catch (e) {
+    console.warn('Failed to submit order:', e);
+    return false;
+  }
+}
+
+async function drSendWhatsApp() {
   const config = window.drDesignConfig;
   const brand = document.getElementById('dr-sink-brand').value || 'غير متوفر';
   const width = document.getElementById('dr-sink-width').value || 'غير متوفر';
   const code = document.getElementById('dr-sink-code').value || 'غير متوفر';
   const name = document.getElementById('dr-customer-name').value || 'غير متوفر';
+  const orderNum = window.drCurrentOrderNum || `DR-${String(Date.now()).slice(-8)}`;
+  const locationAddress = window.userLocationAddress || {};
+  const location = locationAddress.governorate ? `${locationAddress.governorate} - ${locationAddress.district || ''}` : 'غير متوفر';
 
-  const location = window.drLocationText || 'غير متوفر';
-  const orderNum = document.getElementById('dr-order-number')?.textContent || config.requestId || '—';
+  // إرسال للـ Sheet
+  const submitted = await submitOrderToSheet(orderNum);
+  if (!submitted) {
+    console.warn('Order not saved to sheet');
+  }
 
+  // إظهار صفحة التأكيد
+  drShowConfirmation(orderNum);
+
+  // فتح الواتساب
   const message = `السلام عليكم،
 
 أرغب في طلب معاينة وتصميم لوحدة حوض.
@@ -3417,7 +3467,83 @@ function drSendWhatsApp() {
   window.open(waUrl, '_blank');
 }
 
+function drShowConfirmation(orderNum) {
+  const modal = document.getElementById('design-request-modal');
+  const box = modal?.querySelector('.design-request-box');
+  if (!box) return;
+
+  box.innerHTML = `
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding: 48px 24px; text-align:center; gap:16px;">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#91a37f" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <polyline points="9 12 11 14 15 10"/>
+      </svg>
+      <h2 style="font-size:20px; font-weight:700; color:var(--color-text-main); margin:0;">تم إرسال طلبك بنجاح!</h2>
+      <p style="font-size:13px; color:var(--color-text-muted); margin:0;">رقم طلبك: <strong>${orderNum}</strong></p>
+      <p style="font-size:13px; color:var(--color-text-muted); margin:0;">احتفظ بهذا الرقم للمتابعة</p>
+      <p style="font-size:13px; color:var(--color-text-muted); margin:0;">هنتواصل معاك خلال 24 ساعة</p>
+      <div style="display:flex; gap:12px; margin-top:8px;">
+        <button onclick="closeDesignRequestModal()" style="padding:10px 24px; border-radius:8px; border:1px solid var(--color-border); background:#fff; cursor:pointer; font-family:var(--font-family-main); font-size:13px;">إغلاق</button>
+        <button onclick="drViewSummary()" style="padding:10px 24px; border-radius:8px; border:none; background:var(--color-accent,#91a37f); color:#fff; cursor:pointer; font-family:var(--font-family-main); font-size:13px;">عرض ملخص الطلب</button>
+      </div>
+    </div>
+  `;
+}
+
+function drViewSummary() {
+  const previewEl = document.getElementById('dr-invoice-preview');
+  const content = previewEl?.querySelector('.dr-preview-document');
+  if (!content) return;
+
+  const orderNum = window.drCurrentOrderNum || '';
+  const pages = content.querySelectorAll('.page');
+  const baseUrl = window.location.href.replace(/\/[^\/]*$/, '/');
+
+  let pagesHtml = '';
+  pages.forEach(p => {
+    const clone = p.cloneNode(true);
+    clone.style.transform = 'none';
+    clone.style.marginBottom = '0';
+    pagesHtml += clone.outerHTML;
+  });
+
+  const htmlContent = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <base href="${baseUrl}">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="${baseUrl}css/product-order-summary.css">
+  <style>
+    body { margin: 0; padding: 0; background: #fff; }
+    .page { transform: none !important; margin: 0 !important; }
+    @media print { 
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      @page { size: A4; margin: 10mm; }
+      .print-btn { display: none; }
+    }
+    .print-btn {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #91a37f; color: #fff; border: none; padding: 12px 32px;
+      font-size: 16px; font-family: 'Cairo', sans-serif; border-radius: 8px;
+      cursor: pointer; z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+  </style>
+</head>
+<body>
+  <button class="print-btn" onclick="window.print()">طباعة / حفظ كـ PDF</button>
+  ${pagesHtml}
+</body>
+</html>`;
+
+  const blob = new Blob([htmlContent], { type: 'text/html' });
+  const blobUrl = URL.createObjectURL(blob);
+  window.open(blobUrl, '_blank');
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+}
+
 window.drSendWhatsApp = drSendWhatsApp;
+window.drViewSummary = drViewSummary;
 
 function customWA() {
   window.open(
