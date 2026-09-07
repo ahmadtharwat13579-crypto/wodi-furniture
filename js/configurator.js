@@ -3288,6 +3288,7 @@ function loadDRDraft() {
     console.error('Failed to parse draft data:', e);
   }
 }
+
 function drDownloadPdf() {
   const previewEl = document.getElementById('dr-invoice-preview');
   const content = previewEl?.querySelector('.dr-preview-document');
@@ -3326,23 +3327,40 @@ function drDownloadPdf() {
   <style>
     body { margin: 0; padding: 0; background: #fff; }
     .page { transform: none !important; margin: 0 !important; }
-    @media print { body { -webkit-print-color-adjust: exact; } }
+    @media print { 
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      @page { size: A4; margin: 10mm; }
+    }
+    .print-btn {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #91a37f;
+      color: #fff;
+      border: none;
+      padding: 12px 32px;
+      font-size: 16px;
+      font-family: 'Cairo', sans-serif;
+      border-radius: 8px;
+      cursor: pointer;
+      z-index: 9999;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    @media print { .print-btn { display: none; } }
   </style>
 </head>
 <body>
+  <button class="print-btn" onclick="window.print()">طباعة / حفظ كـ PDF</button>
   ${pagesHtml}
-  <script>window.onload = function() { window.print(); };<\/script>
 </body>
 </html>`;
 
   const blob = new Blob([htmlContent], { type: 'text/html' });
   const blobUrl = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = blobUrl;
-  a.download = `WODI-${orderNum}.html`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-  showToast('تم تحميل الملف — افتحه واطبعه كـ PDF');
+  window.open(blobUrl, '_blank');
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+  showToast('اضغط "طباعة / حفظ كـ PDF" واختر A4');
 }
 
 window.drDownloadPdf = drDownloadPdf;
