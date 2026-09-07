@@ -7,7 +7,7 @@ Configuration & Constants
 */
 const WA = '201556840368';
 const GH = 'https://raw.githubusercontent.com/ahmadtharwat13579-crypto/wodifurniture/main/images/conf/';
-const SHEET = 'https://script.google.com/macros/s/AKfycbzdsSpnSE8pmp9Z9KWz3ZcQvnFudav5nram7zPwS6uBdiKa5V0JVl-_6NfjHpr1L2Yr/exec?pwd=double-protection-password';
+const SHEET = '/api/get-config';
 const GEOAPIFY_API_KEY = '5d919ff1fd3f4004a73ceb1fb508e805';
 const cur = 'ج.م.';
 const DR_STORAGE_KEY = 'dr_form_draft';
