@@ -3288,7 +3288,6 @@ function loadDRDraft() {
     console.error('Failed to parse draft data:', e);
   }
 }
-
 function drDownloadPdf() {
   const previewEl = document.getElementById('dr-invoice-preview');
   const content = previewEl?.querySelector('.dr-preview-document');
@@ -3299,7 +3298,6 @@ function drDownloadPdf() {
 
   const orderNum = window.drCurrentOrderNum || `DR-${String(Date.now()).slice(-8)}`;
   const pages = content.querySelectorAll('.page');
-  const pageEl = pages.length > 0 ? null : content;
   const baseUrl = window.location.href.replace(/\/[^\/]*$/, '/');
 
   let pagesHtml = '';
@@ -3313,7 +3311,7 @@ function drDownloadPdf() {
       pagesHtml += clone.outerHTML;
     });
   } else {
-    const clone = pageEl.cloneNode(true);
+    const clone = content.cloneNode(true);
     clone.style.transform = 'none';
     pagesHtml = clone.outerHTML;
   }
@@ -3339,9 +3337,12 @@ function drDownloadPdf() {
 
   const blob = new Blob([htmlContent], { type: 'text/html' });
   const blobUrl = URL.createObjectURL(blob);
-  window.open(blobUrl, '_blank');
+  const a = document.createElement('a');
+  a.href = blobUrl;
+  a.download = `WODI-${orderNum}.html`;
+  a.click();
   setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-  showToast('تم فتح ملخص الطلب للطباعة');
+  showToast('تم تحميل الملف — افتحه واطبعه كـ PDF');
 }
 
 window.drDownloadPdf = drDownloadPdf;
