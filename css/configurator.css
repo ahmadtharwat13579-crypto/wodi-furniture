@@ -565,7 +565,7 @@
   font-size: var(--font-size-md);
   font-weight: 500;
   color: var(--color-text-muted);
-  margin-bottom: 10px;
+  margin-bottom: 2px;
   position: relative;
 }
 
@@ -1876,8 +1876,13 @@
   border-radius: var(--radius-xs);
   font-size: 12px;
   font-family: var(--font-family-main);
-  background: #fcfcfc;
+  background: #ffffff;
   color: var(--color-text-main);
+  transition: background 0.2s ease;
+}
+
+.dr-input:not(:placeholder-shown) {
+  background: #fcfcfc;
 }
 
 .dr-input:focus {
@@ -1979,7 +1984,7 @@ select.dr-input {
   -moz-appearance: none;
   width: 100%;
   cursor: pointer;
-  background-color: #ffffff;
+  background-color: #FCFCFC;
   /* مساحة داخلية جهة اليسار لمنع تداخل النص مع السهم في الواجهات العربية */
   padding-left: 36px !important;
   padding-right: 12px;

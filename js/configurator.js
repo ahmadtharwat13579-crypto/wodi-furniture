@@ -89,9 +89,17 @@ document.addEventListener('DOMContentLoaded', function () {
   
   if (phoneInput) {
     new Cleave(phoneInput, {
-      blocks: [3, 4, 4],
+      blocks: [4, 4, 3],
       delimiter: ' ',
       numericOnly: true
+    });
+
+    phoneInput.addEventListener('input', function () {
+      const val = phoneInput.value.replace(/\D/g, '');
+      if (val.startsWith('2')) {
+        phoneInput.value = '';
+        showToast('أدخل رقمك بدون مفتاح الدولة — ابدأ بـ 01');
+      }
     });
   }
 });
@@ -809,7 +817,7 @@ function rDes() {
   
   const sectionTitle = document.createElement('span');
   sectionTitle.className = 'step-title';
-  sectionTitle.textContent = 'اختر لون الوحدة';
+  sectionTitle.textContent = 'لون الوحدة';
   
   sectionTitleHeader.appendChild(sectionTitle);
   colorContainer.appendChild(sectionTitleHeader);
@@ -2580,8 +2588,14 @@ function drValidateStep(stepNum) {
     const hasLocation = hasAutoLocation || !!manualAddress || hasDropdownLocation;
 
     const missingFields = [];
+    const phoneDigits = phone.replace(/\D/g, '');
+    const validPhone = phoneDigits.length === 11 && phoneDigits.startsWith('01');
     if (!name) missingFields.push('الاسم');
     if (!phone) missingFields.push('رقم الهاتف');
+    else if (!validPhone) {
+      showToast('رقم الهاتف غير صحيح — يجب أن يبدأ بـ 01 ويتكون من 11 رقم');
+      return false;
+    }
     if (!hasLocation) missingFields.push('العنوان');
 
     if (missingFields.length > 0) {
@@ -3277,35 +3291,57 @@ function loadDRDraft() {
 
 function drDownloadPdf() {
   const previewEl = document.getElementById('dr-invoice-preview');
-  const content = previewEl.querySelector('.dr-preview-document');
+  const content = previewEl?.querySelector('.dr-preview-document');
   if (!content) {
     showToast('يرجى مراجعة المعاينة أولاً');
     return;
   }
 
   const orderNum = window.drCurrentOrderNum || `DR-${String(Date.now()).slice(-8)}`;
+  const pages = content.querySelectorAll('.page');
+  const pageEl = pages.length > 0 ? null : content;
+  const baseUrl = window.location.href.replace(/\/[^\/]*$/, '/');
 
-  try {
-    if (typeof html2pdf === 'undefined') {
-      showToast('مكتبة PDF غير متاحة');
-      return;
-    }
-
-    const element = content.querySelector('.page') || content;
-    const opt = {
-      margin: 10,
-      filename: `WODI-Design-Request-${orderNum}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { scale: 2, useCORS: true, allowTaint: true },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
-
-    window.html2pdf().set(opt).from(element).save();
-    showToast('تم تحميل ملخص الطلب');
-  } catch (e) {
-    console.error('PDF gen error:', e);
-    showToast('فشل إنشاء ملف PDF — تأكد من تحميل مكتبة html2pdf');
+  let pagesHtml = '';
+  if (pages.length > 0) {
+    pages.forEach(p => {
+      const clone = p.cloneNode(true);
+      clone.style.transform = 'none';
+      clone.style.marginBottom = '0';
+      clone.style.marginLeft = '0';
+      clone.style.marginRight = '0';
+      pagesHtml += clone.outerHTML;
+    });
+  } else {
+    const clone = pageEl.cloneNode(true);
+    clone.style.transform = 'none';
+    pagesHtml = clone.outerHTML;
   }
+
+  const htmlContent = `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <base href="${baseUrl}">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="${baseUrl}css/product-order-summary.css">
+  <style>
+    body { margin: 0; padding: 0; background: #fff; }
+    .page { transform: none !important; margin: 0 !important; }
+    @media print { body { -webkit-print-color-adjust: exact; } }
+  </style>
+</head>
+<body>
+  ${pagesHtml}
+  <script>window.onload = function() { window.print(); };<\/script>
+</body>
+</html>`;
+
+  const blob = new Blob([htmlContent], { type: 'text/html' });
+  const blobUrl = URL.createObjectURL(blob);
+  window.open(blobUrl, '_blank');
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+  showToast('تم فتح ملخص الطلب للطباعة');
 }
 
 window.drDownloadPdf = drDownloadPdf;
