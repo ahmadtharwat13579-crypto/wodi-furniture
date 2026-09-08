@@ -1,6 +1,7 @@
 // 1. استيراد المكتبات الأساسية من الـ CDN
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
 
 // 2. بيانات الفايربيس
 const firebaseConfig = {
@@ -15,7 +16,45 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
+
+window.saveInvoiceToFirestore = async function(orderNum, invoiceHtml) {
+  const user = auth.currentUser;
+
+  if (!user) {
+    throw new Error('User is not authenticated');
+  }
+
+  await setDoc(doc(db, 'invoices', orderNum), {
+    html: invoiceHtml,
+    uid: user.uid,
+    createdAt: new Date()
+  });
+};
+
+window.getInvoiceFromFirestore = async function(orderNum) {
+  const user = auth.currentUser;
+
+  if (!user) {
+    throw new Error('User is not authenticated');
+  }
+
+  const invoiceRef = doc(db, 'invoices', orderNum);
+  const invoiceSnap = await getDoc(invoiceRef);
+
+  if (!invoiceSnap.exists()) {
+    return null;
+  }
+
+  const data = invoiceSnap.data();
+
+  if (data.uid !== user.uid) {
+    throw new Error('Unauthorized invoice access');
+  }
+
+  return data.html || null;
+};
 
 // تسجيل الدخول بحساب جوجل
 window.loginWithGoogle = function() {

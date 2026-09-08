@@ -1,15 +1,11 @@
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
-  const SHEET_URL = process.env.SHEET_URL;
-  const SHEET_PWD = process.env.SHEET_PWD;
-
-  const body = { ...req.body, pwd: SHEET_PWD };
+  const body = { ...req.body, pwd: process.env.SHEET_PWD };
 
   try {
-    const response = await fetch(SHEET_URL, {
+    const response = await fetch(process.env.SHEET_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     });
     const data = await response.json();

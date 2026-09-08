@@ -2283,9 +2283,13 @@ select.dr-input {
   transition: opacity var(--transition-base), visibility var(--transition-base);
 }
 
-.dr-drawer-backdrop.active {
+.dr-drawer-backdrop.open {
   opacity: 1;
   visibility: visible;
+}
+
+.dr-orders-drawer.open {
+  left: 0;
 }
 
 .dr-orders-drawer {
@@ -2335,7 +2339,23 @@ select.dr-input {
   border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
+  position: relative;
+}
+
+.dr-drawer-header h3 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--color-text-main);
+  text-align: center;
+}
+
+.dr-drawer-header .dr-close-btn {
+  position: absolute;
+  left: var(--space-4);
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .dr-drawer-title {
@@ -2343,21 +2363,6 @@ select.dr-input {
   font-weight: 700;
   color: var(--color-text-main);
   margin: 0;
-}
-
-.dr-drawer-close-btn {
-  background: none;
-  border: none;
-  font-size: 20px;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  padding: var(--space-1);
-  line-height: 1;
-  transition: color var(--transition-fast);
-}
-
-.dr-drawer-close-btn:hover {
-  color: var(--color-text-main);
 }
 
 /* Drawer Body */

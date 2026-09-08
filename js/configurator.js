@@ -209,13 +209,9 @@ async function drOpenOrdersDrawer() {
 
 // إغلاق الـ Side Drawer
 function drCloseOrdersDrawer() {
-  const drawer = document.getElementById('drOrdersDrawer');
-  const backdrop = document.getElementById('drDrawerOverlay');
-  
-  if (drawer && backdrop) {
-    drawer.classList.remove('open');
-    backdrop.classList.remove('open');
-  }
+  document.getElementById('drOrdersDrawer')?.classList.remove('open');
+  document.getElementById('drDrawerOverlay')?.classList.remove('open');
+  document.body.style.overflow = '';
 }
 
 // جلب الطلبات الخاصة بالعميل من Google Apps Script
@@ -254,8 +250,28 @@ async function drLoadUserOrders() {
           <span class="dr-order-detail-label">السعر المتوقع:</span>
           <span>${order.unitPrice} ج.م</span>
         </div>
-        <div style="text-align: left; margin-top: 8px;">
-          <span class="dr-order-status-badge ${getStatusClass(order.status)}">${order.status}</span>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 8px;">
+        <span class="dr-order-status-badge ${getStatusClass(order.status)}">${order.status}</span>
+
+        <div style="display:flex; gap:6px; align-items:center;">
+          <button
+            type="button"
+            onclick="drViewSummary('${order.orderNum}')"
+            style="background:none; border:1px solid #9caf88; color:#9caf88; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:11px; font-family:var(--font-family-main);"
+          >
+            عرض الملخص
+          </button>
+
+          ${order.status === 'بانتظار المراجعة' ? `
+            <button
+              type="button"
+              onclick="drCancelOrder('${order.orderNum}')"
+              style="background:none; border:1px solid #ef4444; color:#ef4444; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:11px; font-family:var(--font-family-main);"
+            >
+              إلغاء الطلب
+            </button>
+          ` : ''}
+        </div>
         </div>
       </div>
     `).join('');
@@ -265,6 +281,33 @@ async function drLoadUserOrders() {
     bodyContainer.innerHTML = '<div class="dr-orders-empty">تعذر جلب البيانات. حاول مرة أخرى.</div>';
   }
 }
+
+async function drCancelOrder(orderNum) {
+  if (!confirm('هل أنت متأكد من إلغاء الطلب؟')) return;
+
+  try {
+    const resp = await fetch('/api/submit-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'cancelOrder',
+        orderNum,
+        email: window.currentUser?.email || ''
+      })
+    });
+    const data = await resp.json();
+    if (data.success) {
+      showToast('تم إلغاء الطلب بنجاح');
+      await drLoadUserOrders();
+    } else {
+      showToast('تعذر إلغاء الطلب');
+    }
+  } catch (e) {
+    showToast('حدث خطأ — حاول مرة أخرى');
+  }
+}
+
+window.drCancelOrder = drCancelOrder;
 
 // تحديد الكلاس الملون بناءً على الحالة من الشيت
 function getStatusClass(status) {
@@ -3539,6 +3582,10 @@ async function submitOrderToSheet() {
       body: JSON.stringify(body)
     });
     const data = await resp.json();
+    if (!data.success && data.error === 'max_orders') {
+      showToast('وصلت للحد الأقصى من الطلبات — تواصل معنا على الواتساب للمتابعة');
+      return null;
+    }
     return data.orderNum || null;
   } catch (e) {
     console.warn('Failed to submit order:', e);
@@ -3562,15 +3609,25 @@ async function drSendWhatsApp() {
   }
 
   const orderNum = await submitOrderToSheet();
-  window.drCurrentOrderNum = orderNum;
-
-  // حفظ إن الطلب اتبعت
-  localStorage.setItem('wodi_order_submitted', orderNum);
-
+    
   if (!orderNum) {
     console.warn('Order not saved to sheet');
+    showToast('حدث خطأ أثناء إرسال الطلب — حاول مرة أخرى');
+    return;
   }
 
+  const invoiceHtml = document.querySelector('.dr-preview-document')?.innerHTML;
+
+  if (invoiceHtml && typeof window.saveInvoiceToFirestore === 'function') {
+    try {
+      await window.saveInvoiceToFirestore(orderNum, invoiceHtml);
+    } catch (error) {
+      console.error('Failed to save invoice to Firestore:', error);
+    }
+  }
+
+  window.drCurrentOrderNum = orderNum;
+  localStorage.setItem('wodi_order_submitted', orderNum);
   drShowConfirmation(orderNum);
 
   // مسح اختيارات الكونفيجوريتور والداتا
@@ -3631,59 +3688,106 @@ function drShowConfirmation(orderNum) {
   `;
 }
 
-function drViewSummary() {
-  const previewEl = document.getElementById('dr-invoice-preview');
-  const content = previewEl?.querySelector('.dr-preview-document');
-  if (!content) return;
+async function drViewSummary(orderNum) {
+  if (!orderNum) return;
 
-  const orderNum = window.drCurrentOrderNum || '';
-  const pages = content.querySelectorAll('.page');
-  const baseUrl = window.location.href.replace(/\/[^\/]*$/, '/');
+  if (typeof window.getInvoiceFromFirestore !== 'function') {
+    showToast('تعذر تحميل ملخص الطلب');
+    return;
+  }
 
-  let pagesHtml = '';
-  pages.forEach(p => {
-    const clone = p.cloneNode(true);
-    clone.style.transform = 'none';
-    clone.style.marginBottom = '0';
-    pagesHtml += clone.outerHTML;
-  });
+  try {
+    const invoiceHtml = await window.getInvoiceFromFirestore(orderNum);
 
-  const htmlContent = `<!DOCTYPE html>
+    if (!invoiceHtml) {
+      showToast('ملخص هذا الطلب غير متوفر');
+      return;
+    }
+
+    const baseUrl = window.location.href.replace(/\/[^\/]*$/, '/');
+
+    const htmlContent = `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
+
   <base href="${baseUrl}">
+
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="${baseUrl}css/product-order-summary.css">
+
   <style>
-    body { margin: 0; padding: 0; background: #fff; }
-    .page { transform: none !important; margin: 0 !important; }
-    @media print { 
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      @page { size: A4; margin: 10mm; }
-      .print-btn { display: none; }
+    body {
+      margin: 0;
+      padding: 0;
+      background: #fff;
     }
+
+    .page {
+      transform: none !important;
+      margin: 0 !important;
+    }
+
+    @media print {
+      body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      @page {
+        size: A4;
+        margin: 10mm;
+      }
+
+      .print-btn {
+        display: none;
+      }
+    }
+
     .print-btn {
-      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-      background: #91a37f; color: #fff; border: none; padding: 12px 32px;
-      font-size: 16px; font-family: 'Cairo', sans-serif; border-radius: 8px;
-      cursor: pointer; z-index: 9999; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #91a37f;
+      color: #fff;
+      border: none;
+      padding: 12px 32px;
+      font-size: 16px;
+      font-family: 'Cairo', sans-serif;
+      border-radius: 8px;
+      cursor: pointer;
+      z-index: 9999;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
     }
   </style>
 </head>
+
 <body>
-  <button class="print-btn" onclick="window.print()">طباعة / حفظ كـ PDF</button>
-  ${pagesHtml}
+
+  <button class="print-btn" onclick="window.print()">
+    طباعة / حفظ كـ PDF
+  </button>
+
+  ${invoiceHtml}
+
 </body>
 </html>`;
 
-  const blob = new Blob([htmlContent], { type: 'text/html' });
-  const blobUrl = URL.createObjectURL(blob);
-  window.open(blobUrl, '_blank');
-  setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const blobUrl = URL.createObjectURL(blob);
+
+    window.open(blobUrl, '_blank');
+
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+
+  } catch (error) {
+    console.error('Failed to load invoice:', error);
+    showToast('تعذر تحميل ملخص الطلب');
+  }
 }
 
-window.drSendWhatsApp = drSendWhatsApp;
 window.drViewSummary = drViewSummary;
 
 function customWA() {
