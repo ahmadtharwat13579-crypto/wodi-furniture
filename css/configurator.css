@@ -2266,6 +2266,256 @@ select.dr-input {
   transform: none;
 }
 
+/* =========================================
+   Side Drawer Component for User Orders
+========================================= */
+
+.dr-drawer-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--modal-bg-overlay);
+  z-index: var(--z-backdrop);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity var(--transition-base), visibility var(--transition-base);
+}
+
+.dr-drawer-backdrop.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.dr-orders-drawer {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  left: -420px;
+  width: 100%;
+  max-width: 360px;
+  height: 70vh;
+  background-color: var(--color-bg-light);
+  z-index: var(--z-modal);
+  box-shadow: var(--shadow-modal);
+  display: flex;
+  flex-direction: column;
+  transition: left var(--transition-base);
+  font-family: var(--font-family-main);
+  overflow: hidden;
+  border-radius: 0 12px 12px 0;
+}
+
+.dr-orders-drawer.open {
+  left: 0;
+}
+
+/* Vertical Brand Accent Line */
+.dr-drawer-vertical-brand {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%) rotate(-90deg);
+  transform-origin: center center;
+  font-size: var(--font-size-title);
+  font-weight: 700;
+  color: rgba(51, 48, 40, 0.12);
+  letter-spacing: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+/* Drawer Header */
+.dr-drawer-header {
+  padding: var(--space-5) var(--space-6);
+  background-color: var(--color-bg-white);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dr-drawer-title {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  color: var(--color-text-main);
+  margin: 0;
+}
+
+.dr-drawer-close-btn {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--space-1);
+  line-height: 1;
+  transition: color var(--transition-fast);
+}
+
+.dr-drawer-close-btn:hover {
+  color: var(--color-text-main);
+}
+
+/* Drawer Body */
+.dr-drawer-body {
+  flex: 1;
+  padding: var(--space-4) var(--space-6);
+  overflow-y: auto;
+  position: relative;
+}
+
+/* Order Item Card */
+.dr-order-card {
+  background-color: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.dr-order-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.dr-order-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px dashed var(--color-border);
+  padding-bottom: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.dr-order-id {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--color-text-main);
+}
+
+.dr-order-date {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.dr-order-detail-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-md);
+  margin-bottom: var(--space-2);
+  color: var(--color-text-main);
+}
+
+.dr-order-detail-label {
+  color: var(--color-text-muted);
+}
+
+/* Order Status Badge & Stepper */
+.dr-order-status-badge {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-align: center;
+  margin-top: var(--space-2);
+}
+
+.status-review {
+  background-color: #fff8e1;
+  color: #b78103;
+}
+
+.status-accepted {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.status-design {
+  background-color: #e3f2fd;
+  color: #1565c0;
+}
+
+.status-assembly {
+  background-color: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.status-transit {
+  background-color: #e0f2f1;
+  color: #00695c;
+}
+
+.status-completed {
+  background-color: #e8f5e9;
+  color: var(--color-primary-hover);
+}
+
+.status-cancelled {
+  background-color: #ffebee;
+  color: var(--color-error);
+}
+
+/* Empty State */
+.dr-orders-empty {
+  text-align: center;
+  padding: var(--space-8) var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-base);
+}
+
+/* الشريط الجانبي المثبت دائماً */
+.dr-sidebar-tab {
+  position: fixed;
+  top: 40%;
+  left: 0;
+  z-index: 999;
+  background-color: #9caf88;
+  color: #ffffff;
+  padding: 16px 10px;
+  border-radius: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.15);
+  transition: transform 0.2s ease, background-color 0.2s;
+}
+
+.dr-sidebar-tab:hover {
+  background-color: #8a9c77;
+  transform: translateX(3px);
+}
+
+.dr-tab-text {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 2px;
+}
+
+.dr-tab-text {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 1px;
+}
+
+.dr-tab-icon {
+  font-size: 18px;
+  line-height: 1;
+  font-weight: bold;
+}
+
 /* ====================================================
    MAPS & CONTAINERS
    ==================================================== */

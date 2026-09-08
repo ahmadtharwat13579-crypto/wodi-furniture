@@ -179,6 +179,112 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
+// فتح الـ Side Drawer
+async function drOpenOrdersDrawer() {
+  const drawer = document.getElementById('drOrdersDrawer');
+  const backdrop = document.getElementById('drDrawerOverlay');
+  const bodyContainer = document.getElementById('drOrdersContainer');
+
+  if (drawer && backdrop) {
+    drawer.classList.add('open');
+    backdrop.classList.add('open');
+  }
+
+  if (!window.currentUser) {
+    if (bodyContainer) {
+      bodyContainer.innerHTML = `
+        <div class="dr-orders-empty" style="text-align: center; padding: 20px;">
+          <p style="margin-bottom: 12px;">يرجى تسجيل الدخول لمتابعة طلباتك.</p>
+          <button type="button" onclick="window.loginWithGoogle()" style="background-color: #9caf88; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">
+            تسجيل الدخول باستخدام Google
+          </button>
+        </div>
+      `;
+    }
+    return;
+  }
+
+  await drLoadUserOrders();
+}
+
+// إغلاق الـ Side Drawer
+function drCloseOrdersDrawer() {
+  const drawer = document.getElementById('drOrdersDrawer');
+  const backdrop = document.getElementById('drDrawerOverlay');
+  
+  if (drawer && backdrop) {
+    drawer.classList.remove('open');
+    backdrop.classList.remove('open');
+  }
+}
+
+// جلب الطلبات الخاصة بالعميل من Google Apps Script
+async function drLoadUserOrders() {
+  const bodyContainer = document.getElementById('drOrdersContainer');
+  if (!bodyContainer) return;
+
+  bodyContainer.innerHTML = '<div class="dr-orders-empty">جاري تحميل طلباتك...</div>';
+
+  try {
+    const userEmail = window.currentUser ? window.currentUser.email : '';
+    if (!userEmail) {
+      bodyContainer.innerHTML = '<div class="dr-orders-empty">تعذر تحديد البريد الإلكتروني.</div>';
+      return;
+    }
+
+    const response = await fetch(`/api/get-config?action=getUserOrders&email=${encodeURIComponent(userEmail)}`);
+    const data = await response.json();
+
+    if (!data.orders || data.orders.length === 0) {
+      bodyContainer.innerHTML = '<div class="dr-orders-empty">لا توجد طلبات سابقة مسجلة بهذا الحساب.</div>';
+      return;
+    }
+
+    bodyContainer.innerHTML = data.orders.map(order => `
+      <div class="dr-order-card">
+        <div class="dr-order-card-header">
+          <span class="dr-order-id">${order.orderNum}</span>
+          <span class="dr-order-date">${order.date}</span>
+        </div>
+        <div class="dr-order-detail-row">
+          <span class="dr-order-detail-label">التصميم:</span>
+          <span>${order.designName || 'تصميم وحدة'}</span>
+        </div>
+        <div class="dr-order-detail-row">
+          <span class="dr-order-detail-label">السعر المتوقع:</span>
+          <span>${order.unitPrice} ج.م</span>
+        </div>
+        <div style="text-align: left; margin-top: 8px;">
+          <span class="dr-order-status-badge ${getStatusClass(order.status)}">${order.status}</span>
+        </div>
+      </div>
+    `).join('');
+
+  } catch (err) {
+    console.error('Error loading user orders:', err);
+    bodyContainer.innerHTML = '<div class="dr-orders-empty">تعذر جلب البيانات. حاول مرة أخرى.</div>';
+  }
+}
+
+// تحديد الكلاس الملون بناءً على الحالة من الشيت
+function getStatusClass(status) {
+  switch (status) {
+    case 'تم قبول الطلب': return 'status-accepted';
+    case 'تم دفع المقدم': return 'status-accepted';
+    case 'مرحلة التصميم': return 'status-design';
+    case 'مرحلة التجميع': return 'status-assembly';
+    case 'جاري النقل والتسليم': return 'status-transit';
+    case 'تم التسليم': return 'status-completed';
+    case 'ملغي': return 'status-cancelled';
+    default: return 'status-review';
+  }
+}
+
+// تصدير الدوال للنطاق العام
+window.drOpenOrdersDrawer = drOpenOrdersDrawer;
+window.drCloseOrdersDrawer = drCloseOrdersDrawer;
+window.drLoadUserOrders = drLoadUserOrders;
+
 function parseCSV(t) {
   const ls = t.trim().split('\n');
   const hs = ls[0].split(',').map(h => h.trim().replace(/^\uFEFF/, '').replace(/^"|"$/g, ''));
@@ -3769,7 +3875,6 @@ window.customWA = customWA;
 window.outOfRangeWA = outOfRangeWA;
 window.resetAll = resetAll;
 window.calcInstall = calcInstall;
-window.updateStickyValue = updateStickyValue;
 
 if (typeof showCustomErrorToast !== 'function') {
   window.showCustomErrorToast = function(msg) {

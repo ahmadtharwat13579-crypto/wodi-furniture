@@ -125,7 +125,6 @@ fetch('nav.html')
 
 <div class="configurator-card">
 
-
 <!-- 0. Sink Type -->
 <div class="grid-item sink-type-section-box">
   <div class="step">
@@ -1006,6 +1005,43 @@ fetch('nav.html')
     </div>
   </div>
 </div>
+
+
+<!-- Tab جانبي مثبت دائماً -->
+<div class="dr-sidebar-tab" onclick="drOpenOrdersDrawer()">
+  <span class="dr-tab-text">طلباتي</span>
+  <span class="dr-tab-icon">‹</span>
+</div>
+
+<!-- خلفية التظليل والـ Drawer -->
+<div id="drDrawerOverlay" class="dr-drawer-backdrop" onclick="drCloseOrdersDrawer()"></div>
+
+<div id="drOrdersDrawer" class="dr-orders-drawer">
+  <div class="dr-drawer-header">
+    <div class="dr-brand-accent">WODI FURNITURE</div>
+    <h3>متابعة الطلبات</h3>
+    <button type="button" class="dr-close-btn" onclick="drCloseOrdersDrawer()">&times;</button>
+  </div>
+  <div class="dr-drawer-body" id="drOrdersContainer">
+    <!-- يتم تحميل الطلبات هنا عبر JS -->
+  </div>
+</div>
+
+<script>
+  if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+    let lastEtag = null;
+    setInterval(async () => {
+      try {
+        const res = await fetch(location.href, { cache: 'no-store' });
+        const etag = res.headers.get('etag') || await res.text();
+        if (lastEtag && etag !== lastEtag) {
+          location.reload();
+        }
+        lastEtag = etag;
+      } catch (e) {}
+    }, 1000);
+  }
+</script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cleave.js/1.6.0/cleave.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
