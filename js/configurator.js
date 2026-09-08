@@ -3484,16 +3484,14 @@ function drGetLocation() {
 
 window.drGetLocation = drGetLocation;
 
-async function submitOrderToSheet(orderNum) {
+async function submitOrderToSheet() {
   const config = window.drDesignConfig;
   const locationAddress = window.userLocationAddress || {};
   const currentUser = window.currentUser || null;
 
   const body = {
-    orderNum,
+    email: currentUser?.email || null,
     uid: currentUser?.uid || null,
-    userEmail: currentUser?.email || null,
-    userName: currentUser?.displayName || null,
     name: document.getElementById('dr-customer-name')?.value || '',
     phone: document.getElementById('dr-customer-phone')?.value || '',
     brand: document.getElementById('dr-sink-brand')?.value || '',
@@ -3517,10 +3515,10 @@ async function submitOrderToSheet(orderNum) {
       body: JSON.stringify(body)
     });
     const data = await resp.json();
-    return data.success;
+    return data.orderNum || null;
   } catch (e) {
     console.warn('Failed to submit order:', e);
-    return false;
+    return null;
   }
 }
 
@@ -3530,20 +3528,19 @@ async function drSendWhatsApp() {
   const width = document.getElementById('dr-sink-width').value || 'غير متوفر';
   const code = document.getElementById('dr-sink-code').value || 'غير متوفر';
   const name = document.getElementById('dr-customer-name').value || 'غير متوفر';
-  const orderNum = window.drCurrentOrderNum || `DR-${String(Date.now()).slice(-8)}`;
   const locationAddress = window.userLocationAddress || {};
   const location = locationAddress.governorate ? `${locationAddress.governorate} - ${locationAddress.district || ''}` : 'غير متوفر';
 
-  // إرسال للـ Sheet
-  const submitted = await submitOrderToSheet(orderNum);
-  if (!submitted) {
+  // إرسال للـ Sheet والحصول على الرقم منه
+  const orderNum = await submitOrderToSheet();
+  window.drCurrentOrderNum = orderNum;
+
+  if (!orderNum) {
     console.warn('Order not saved to sheet');
   }
 
-  // إظهار صفحة التأكيد
   drShowConfirmation(orderNum);
 
-  // فتح الواتساب
   const message = `السلام عليكم،
 
 أرغب في طلب معاينة وتصميم لوحدة حوض.
