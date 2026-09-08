@@ -3252,9 +3252,10 @@ async function drRenderPreview() {
 
     const orderNumEl = content.querySelector('#order-number');
     if (orderNumEl) {
-      const orderNum = `DR-${String(Date.now()).slice(-8)}`;
-      window.drCurrentOrderNum = orderNum;
-      orderNumEl.textContent = orderNum;
+const orderNum =
+  window.drCurrentOrderNum || '—';
+
+orderNumEl.textContent = orderNum;
     }
 
     requestAnimationFrame(() => {
@@ -3549,47 +3550,74 @@ function drGetLocation() {
 window.drGetLocation = drGetLocation;
 
 async function submitOrderToSheet() {
+
   const config = window.drDesignConfig;
   const locationAddress = window.userLocationAddress || {};
   const currentUser = window.currentUser || null;
 
   const body = {
+
     email: currentUser?.email || null,
     uid: currentUser?.uid || null,
+
     name: document.getElementById('dr-customer-name')?.value || '',
     phone: document.getElementById('dr-customer-phone')?.value || '',
+
     brand: document.getElementById('dr-sink-brand')?.value || '',
     sinkWidth: document.getElementById('dr-sink-width')?.value || '',
     sinkCode: document.getElementById('dr-sink-code')?.value || '',
+
     locationAddress,
+
     lat: window.userLat || '',
     lng: window.userLng || '',
+
     sinkType: config?.sinkType || '',
     designName: config?.design?.name || '',
     size: config?.size?.size || '',
     divisionName: config?.division?.name || '',
     handleName: config?.handle?.name || 'بدون',
     unitPrice: config?.unitPrice || '',
+
     selectedColor: S?.selectedColors?.[0] || '',
     handleShape1: S?.selectedHandleShapes?.[0] || '',
-    handleShape2: S?.selectedHandleShapes?.[1] || ''
+    handleShape2: S?.selectedHandleShapes?.[1] || '',
+
+    // صور الطلب
+    wallImage: window.drSavedImages?.wall || '',
+    sinkPhoto: window.drSavedImages?.photo || '',
+    stickerPhoto: window.drSavedImages?.sticker || ''
   };
 
   try {
+
     const resp = await fetch('/api/submit-order', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify(body)
     });
+
     const data = await resp.json();
+
     if (!data.success && data.error === 'max_orders') {
       showToast('وصلت للحد الأقصى من الطلبات — تواصل معنا على الواتساب للمتابعة');
       return null;
     }
+
+    if (!data.success) {
+      console.warn('Order submission failed:', data);
+      return null;
+    }
+
     return data.orderNum || null;
+
   } catch (e) {
+
     console.warn('Failed to submit order:', e);
     return null;
+
   }
 }
 
@@ -3614,16 +3642,6 @@ async function drSendWhatsApp() {
     console.warn('Order not saved to sheet');
     showToast('حدث خطأ أثناء إرسال الطلب — حاول مرة أخرى');
     return;
-  }
-
-  const invoiceHtml = document.querySelector('.dr-preview-document')?.innerHTML;
-
-  if (invoiceHtml && typeof window.saveInvoiceToFirestore === 'function') {
-    try {
-      await window.saveInvoiceToFirestore(orderNum, invoiceHtml);
-    } catch (error) {
-      console.error('Failed to save invoice to Firestore:', error);
-    }
   }
 
   window.drCurrentOrderNum = orderNum;
@@ -3682,42 +3700,486 @@ function drShowConfirmation(orderNum) {
       <p style="font-size:13px; color:var(--color-text-muted); margin:0;">هنتواصل معاك خلال 24 ساعة</p>
       <div style="display:flex; gap:12px; margin-top:8px;">
         <button onclick="closeDesignRequestModal()" style="padding:10px 24px; border-radius:8px; border:1px solid var(--color-border); background:#fff; cursor:pointer; font-family:var(--font-family-main); font-size:13px;">إغلاق</button>
-        <button onclick="drViewSummary()" style="padding:10px 24px; border-radius:8px; border:none; background:var(--color-accent,#91a37f); color:#fff; cursor:pointer; font-family:var(--font-family-main); font-size:13px;">عرض ملخص الطلب</button>
+        <button onclick="drViewSummary('${orderNum}')" style="padding:10px 24px; border-radius:8px; border:none; background:var(--color-accent,#91a37f); color:#fff; cursor:pointer; font-family:var(--font-family-main); font-size:13px;">عرض ملخص الطلب</button>
       </div>
     </div>
   `;
 }
 
 async function drViewSummary(orderNum) {
+
   if (!orderNum) return;
 
-  if (typeof window.getInvoiceFromFirestore !== 'function') {
-    showToast('تعذر تحميل ملخص الطلب');
+  const currentUser = window.currentUser;
+
+  if (!currentUser?.email) {
+    showToast('تعذر تحديد حساب المستخدم');
     return;
   }
 
   try {
-    const invoiceHtml = await window.getInvoiceFromFirestore(orderNum);
 
-    if (!invoiceHtml) {
+    const response = await fetch(
+      `/api/get-config?action=getOrder&orderNum=${encodeURIComponent(orderNum)}&email=${encodeURIComponent(currentUser.email)}`
+    );
+
+    const data = await response.json();
+
+    if (!data.success || !data.order) {
       showToast('ملخص هذا الطلب غير متوفر');
       return;
     }
 
-    const baseUrl = window.location.href.replace(/\/[^\/]*$/, '/');
+    const order = data.order;
 
-    const htmlContent = `<!DOCTYPE html>
+    // تحميل قالب الملخص
+    const templateResponse =
+      await fetch('product-order-summary.html', {
+        cache: 'no-store'
+      });
+
+    if (!templateResponse.ok) {
+      throw new Error('Failed to load invoice template');
+    }
+
+    const html = await templateResponse.text();
+
+    const parser = new DOMParser();
+    const parsedDoc =
+      parser.parseFromString(html, 'text/html');
+
+    const baseUrl =
+      window.location.href.replace(/\/[^\/]*$/, '/');
+
+    const content =
+      document.createElement('div');
+
+    content.className =
+      'dr-preview-document';
+
+    content.innerHTML =
+      parsedDoc.body.innerHTML;
+
+    // -------------------------------------------------------
+    // البيانات الأساسية
+    // -------------------------------------------------------
+
+    const setText = (selector, value) => {
+
+      const el = content.querySelector(selector);
+
+      if (el) {
+        el.textContent =
+          value !== undefined &&
+          value !== null &&
+          value !== ''
+            ? value
+            : 'غير متوفر';
+      }
+    };
+
+    setText('#order-number', order['رقم الطلب']);
+
+    setText('#customer-name', order['الاسم']);
+    setText('#customer-phone', order['التليفون']);
+
+    setText('#sink-brand', order['ماركة الحوض']);
+
+    const widthEl =
+      content.querySelector('#sink-width');
+
+    if (widthEl) {
+      widthEl.textContent =
+        order['عرض الحوض']
+          ? `${order['عرض الحوض']} سم`
+          : 'غير متوفر';
+    }
+
+    setText('#sink-code', order['كود الحوض']);
+
+    // -------------------------------------------------------
+    // نوع الحوض
+    // -------------------------------------------------------
+
+    const sinkTypeNames = {
+
+      'wall-hung': 'حوض معلق',
+
+      'floor-standing': 'حوض برجل كاملة',
+
+      'drop-in': 'حوض ساقط',
+
+      'bowl': 'حوض فوق الكاونتر'
+    };
+
+    setText(
+      '#sink-type',
+      sinkTypeNames[order['نوع الحوض']] ||
+      order['نوع الحوض']
+    );
+
+    // -------------------------------------------------------
+    // الموقع
+    // -------------------------------------------------------
+
+    setText(
+      '#shipping-governorate',
+      order['المحافظة']
+    );
+
+    setText(
+      '#shipping-district',
+      order['الحي']
+    );
+
+    const lngEl =
+      content.querySelector('#shipping-lng');
+
+    if (lngEl) {
+
+      const lng = parseFloat(
+        order['خط الطول']
+      );
+
+      lngEl.textContent =
+        Number.isFinite(lng)
+          ? lng.toFixed(6)
+          : 'غير متوفر';
+    }
+
+    const latEl =
+      content.querySelector('#shipping-lat');
+
+    if (latEl) {
+
+      const lat = parseFloat(
+        order['دائرة العرض']
+      );
+
+      latEl.textContent =
+        Number.isFinite(lat)
+          ? lat.toFixed(6)
+          : 'غير متوفر';
+    }
+
+    // -------------------------------------------------------
+    // صور العميل
+    // -------------------------------------------------------
+
+    const setImage = (selector, url) => {
+
+      const el =
+        content.querySelector(selector);
+
+      if (!el) return;
+
+      if (url) {
+
+        el.src = url;
+        el.hidden = false;
+
+      } else {
+
+        el.hidden = true;
+      }
+    };
+
+    setImage(
+      '#sink-wall-image',
+      order['رابط صورة الحائط']
+    );
+
+    setImage(
+      '#sink-image',
+      order['رابط صورة الحوض']
+    );
+
+    setImage(
+      '#sink-label-image',
+      order['رابط صورة الملصق']
+    );
+
+    // -------------------------------------------------------
+    // صورة التصميم
+    // -------------------------------------------------------
+
+    const designImg =
+      content.querySelector('#design-img');
+
+    if (
+      designImg &&
+      order['نوع الحوض'] &&
+      order['التصميم']
+    ) {
+
+      // هنا نستخدم ID التصميم الموجود في بيانات الطلب
+      // لو كان التصميم محفوظًا بالاسم فقط فلن نقدر نستخرج ID منه.
+      // سيتم التعامل معه لاحقًا إذا كان قالبك يحتاج الصورة.
+    }
+
+    // -------------------------------------------------------
+    // جدول التصميم
+    // -------------------------------------------------------
+
+    const designTbody =
+      content.querySelector('#sink-design-items');
+
+    if (designTbody) {
+
+      const colorId =
+        order['اللون'] || '';
+
+      const colorImgHtml =
+        colorId
+          ? `
+            <img
+              src="images/conf/clr/${encodeURIComponent(colorId)}.webp"
+              style="height:36px; object-fit:contain;"
+              onerror="this.src='images/conf/clr/${encodeURIComponent(colorId)}.png'"
+            />
+          `
+          : '—';
+
+      designTbody.innerHTML = `
+        <tr class="item-row">
+
+          <td class="col-section">
+            التصميم
+          </td>
+
+          <td class="col-name">
+            ${order['التصميم'] || '—'}
+          </td>
+
+          <td class="col-code">
+            —
+          </td>
+
+          <td class="col-color">
+            ${colorImgHtml}
+          </td>
+
+          <td class="col-price">
+            —
+          </td>
+
+        </tr>
+      `;
+    }
+
+    // -------------------------------------------------------
+    // جدول التقسيمة
+    // -------------------------------------------------------
+
+    const divisionTbody =
+      content.querySelector('#sink-division-items');
+
+    if (divisionTbody) {
+
+      divisionTbody.innerHTML = `
+        <tr class="item-row">
+
+          <td class="col-section">
+            التقسيمة الداخلية
+          </td>
+
+          <td class="col-name">
+            ${order['التقسيمة'] || '—'}
+          </td>
+
+          <td class="col-code">
+            —
+          </td>
+
+          <td class="col-price">
+            —
+          </td>
+
+        </tr>
+      `;
+    }
+
+    // -------------------------------------------------------
+    // جدول المقابض
+    // -------------------------------------------------------
+
+    const handleTbody =
+      content.querySelector('#sink-handle-items');
+
+    if (handleTbody) {
+
+      const shape1 =
+        order['شكل المقبض 1'] || '';
+
+      const shape2 =
+        order['شكل المقبض 2'] || '';
+
+      const shape1Html = shape1
+        ? `
+          <img
+            src="images/conf/hnd/${encodeURIComponent(shape1)}.webp"
+            style="height:36px; object-fit:contain;"
+            onerror="this.src='images/conf/hnd/${encodeURIComponent(shape1)}.png'"
+          />
+        `
+        : '—';
+
+      const shape2Html = shape2
+        ? `
+          <img
+            src="images/conf/hnd/${encodeURIComponent(shape2)}.webp"
+            style="height:36px; object-fit:contain;"
+            onerror="this.src='images/conf/hnd/${encodeURIComponent(shape2)}.png'"
+          />
+        `
+        : '—';
+
+      handleTbody.innerHTML = `
+        <tr class="item-row">
+
+          <td class="col-section">
+            نوع المقبض
+          </td>
+
+          <td class="col-name">
+            ${order['المقبض'] || '—'}
+          </td>
+
+          <td class="col-code">
+            —
+          </td>
+
+          <td class="col-handle-priority">
+            ${shape1Html}
+          </td>
+
+          <td class="col-handle-priority">
+            ${shape2Html}
+          </td>
+
+          <td class="col-price">
+            —
+          </td>
+
+        </tr>
+      `;
+    }
+
+    // -------------------------------------------------------
+    // السعر
+    // -------------------------------------------------------
+
+    const totalEl =
+      content.querySelector('#order-total');
+
+    if (totalEl) {
+
+      totalEl.textContent =
+        order['السعر']
+          ? `${order['السعر']} ج.م`
+          : 'غير متوفر';
+    }
+
+    // -------------------------------------------------------
+    // الخريطة
+    // -------------------------------------------------------
+
+    const shippingMapEl =
+      content.querySelector('#shipping-map-image');
+
+    const lat =
+      parseFloat(order['دائرة العرض']);
+
+    const lng =
+      parseFloat(order['خط الطول']);
+
+    if (
+      shippingMapEl &&
+      Number.isFinite(lat) &&
+      Number.isFinite(lng) &&
+      typeof buildStaticMapUrl === 'function'
+    ) {
+
+      const mapUrl =
+        buildStaticMapUrl(lat, lng, 700, 350);
+
+      if (mapUrl) {
+
+        shippingMapEl.src = mapUrl;
+        shippingMapEl.hidden = false;
+      }
+    }
+
+    // -------------------------------------------------------
+    // تحميل CSS
+    // -------------------------------------------------------
+
+    parsedDoc
+      .querySelectorAll('link[rel="stylesheet"]')
+      .forEach(link => {
+
+        const href =
+          link.getAttribute('href');
+
+        if (!href) return;
+
+        const absoluteHref =
+          new URL(
+            href,
+            new URL(
+              'product-order-summary.html',
+              window.location.href
+            )
+          ).href;
+
+        const alreadyLoaded =
+          [...document.querySelectorAll(
+            'link[rel="stylesheet"]'
+          )].some(
+            el => el.href === absoluteHref
+          );
+
+        if (!alreadyLoaded) {
+
+          const styleLink =
+            document.createElement('link');
+
+          styleLink.rel =
+            'stylesheet';
+
+          styleLink.href =
+            absoluteHref;
+
+          document.head.appendChild(styleLink);
+        }
+      });
+
+    // -------------------------------------------------------
+    // فتح الصفحة
+    // -------------------------------------------------------
+
+    const htmlContent = `
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
+
 <head>
+
   <meta charset="UTF-8">
 
   <base href="${baseUrl}">
 
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap"
+    rel="stylesheet"
+  >
 
-  <link rel="stylesheet" href="${baseUrl}css/product-order-summary.css">
+  <link
+    rel="stylesheet"
+    href="${baseUrl}css/product-order-summary.css"
+  >
 
   <style>
+
     body {
       margin: 0;
       padding: 0;
@@ -3730,6 +4192,7 @@ async function drViewSummary(orderNum) {
     }
 
     @media print {
+
       body {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
@@ -3761,30 +4224,56 @@ async function drViewSummary(orderNum) {
       z-index: 9999;
       box-shadow: 0 4px 12px rgba(0,0,0,0.2);
     }
+
   </style>
+
 </head>
 
 <body>
 
-  <button class="print-btn" onclick="window.print()">
+  <button
+    class="print-btn"
+    onclick="window.print()"
+  >
     طباعة / حفظ كـ PDF
   </button>
 
-  ${invoiceHtml}
+  ${content.innerHTML}
 
 </body>
-</html>`;
 
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    const blobUrl = URL.createObjectURL(blob);
+</html>
+`;
 
-    window.open(blobUrl, '_blank');
+    const blob =
+      new Blob(
+        [htmlContent],
+        { type: 'text/html' }
+      );
 
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+    const blobUrl =
+      URL.createObjectURL(blob);
+
+    window.open(
+      blobUrl,
+      '_blank'
+    );
+
+    setTimeout(
+      () => URL.revokeObjectURL(blobUrl),
+      30000
+    );
 
   } catch (error) {
-    console.error('Failed to load invoice:', error);
-    showToast('تعذر تحميل ملخص الطلب');
+
+    console.error(
+      'Failed to load order summary:',
+      error
+    );
+
+    showToast(
+      'تعذر تحميل ملخص الطلب'
+    );
   }
 }
 
