@@ -762,6 +762,7 @@ function createDesignCard(d) {
   el.className =
     "design-card" +
     (S.design && S.design.id === d.id ? " selected" : "");
+  el.dataset.id = d.id;
 
   el.appendChild(mkImg(d.id, el));
 
@@ -828,7 +829,10 @@ function createDesignCard(d) {
         }
       }
 
-      rDes();
+      document.querySelectorAll('#dc .design-card').forEach(card => {
+        card.classList.toggle('selected', card.dataset.id === (S.design?.id || ''));
+        card.classList.toggle('disabled', S.size ? !D.designs.find(dd => dd.id === card.dataset.id)?.sizes.some(s => s.size === S.size.size) : false);
+      });
       rDiv();
       rHnd();
       upd();
@@ -1201,6 +1205,7 @@ function rDiv() {
     .forEach(d => {
       const el = document.createElement("div");
       el.className = "div-card" + (S.div && S.div.id === d.id ? " selected" : "");
+      el.dataset.id = d.id;
       el.classList.remove("disabled");
       
       const imgContainer = mkImg(d.id, el);
@@ -1208,10 +1213,10 @@ function rDiv() {
       if (img) {
         const cleanId = String(d.id).replace(/\.(png|webp|jpg|jpeg)$/i, '');
         const encoded = encodeURIComponent(cleanId);
-        img.src = `images/conf/${encoded}.webp`;
+        img.src = GH + `${encoded}.webp`;
         img.onerror = function () {
           if (this.src.endsWith('.webp')) {
-            this.src = `images/conf/${encoded}.png`;
+            this.src = GH + `${encoded}.png`;
           } else {
             this.style.display = 'none';
           }
@@ -1250,7 +1255,9 @@ function rDiv() {
           S.div = d;
         }
 
-        rDiv();
+        document.querySelectorAll('#vc-wall .div-card, #vc-floor .div-card').forEach(card => {
+          card.classList.toggle('selected', card.dataset.id === (S.div?.id || ''));
+        });
         upd();
       };
 
@@ -1388,6 +1395,7 @@ function rHnd() {
     } else {
       el.className = 'handle-card' + (S.handle && S.handle.id === h.id ? ' selected' : '');
     }
+    el.dataset.id = h.id;
 
     el.appendChild(mkImg(h.id, el));
 
@@ -1429,7 +1437,20 @@ function rHnd() {
         S.selectedHandleShapes = [];
       }
 
-      rHnd();
+      document.querySelectorAll('#hc .handle-card').forEach(card => {
+        card.classList.remove('selected');
+        if (S.handle && card.dataset.id === S.handle.id) {
+          card.classList.add('selected');
+        }
+      });
+      const shapesRow = document.getElementById('handle-shapes-row');
+      if (shapesRow) {
+        if (S.handle && (S.handle.id === '4c_h&k01' || S.handle.id === '4c_h&k02')) {
+          shapesRow.style.display = 'block';
+        } else {
+          shapesRow.style.display = 'none';
+        }
+      }
       upd();
     };
 
@@ -1503,7 +1524,7 @@ function rHnd() {
 
       if (img) {
         const encoded = encodeURIComponent(shapeId);
-        img.src = `images/conf/hnd/${encoded}.webp`;
+        img.src = GH + `hnd/${encoded}.webp`;
 
         img.onerror = function () {
           shapeCard.remove();
@@ -3505,7 +3526,10 @@ async function submitOrderToSheet() {
     size: config?.size?.size || '',
     divisionName: config?.division?.name || '',
     handleName: config?.handle?.name || 'بدون',
-    unitPrice: config?.unitPrice || ''
+    unitPrice: config?.unitPrice || '',
+    selectedColor: S?.selectedColors?.[0] || '',
+    handleShape1: S?.selectedHandleShapes?.[0] || '',
+    handleShape2: S?.selectedHandleShapes?.[1] || ''
   };
 
   try {
@@ -3531,15 +3555,29 @@ async function drSendWhatsApp() {
   const locationAddress = window.userLocationAddress || {};
   const location = locationAddress.governorate ? `${locationAddress.governorate} - ${locationAddress.district || ''}` : 'غير متوفر';
 
-  // إرسال للـ Sheet والحصول على الرقم منه
+  // منع إعادة الإرسال
+  if (localStorage.getItem('wodi_order_submitted')) {
+    showToast('تم إرسال طلبك مسبقاً — تواصل معنا على الواتساب للمتابعة');
+    return;
+  }
+
   const orderNum = await submitOrderToSheet();
   window.drCurrentOrderNum = orderNum;
+
+  // حفظ إن الطلب اتبعت
+  localStorage.setItem('wodi_order_submitted', orderNum);
 
   if (!orderNum) {
     console.warn('Order not saved to sheet');
   }
 
   drShowConfirmation(orderNum);
+
+  // مسح اختيارات الكونفيجوريتور والداتا
+  if (typeof resetAll === 'function') resetAll();
+  localStorage.removeItem('wodi_configurator_state');
+  localStorage.removeItem(DR_STORAGE_KEY);
+  sessionStorage.removeItem('wodi_configurator_cache');
 
   const message = `السلام عليكم،
 
